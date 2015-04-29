@@ -1,0 +1,123 @@
+--- policy_lang.y.orig	2015-04-29 09:31:26.858614754 +0700
++++ policy_lang.y	2015-04-29 02:00:24.401055387 +0700
+@@ -7,6 +7,9 @@
+ #include <glib.h>
+ #include <pbc.h>
+ 
++#define __STDC_FORMAT_MACROS
++#include <inttypes.h>
++
+ #include "common.h"
+ #include "policy_lang.h"
+ 
+@@ -64,7 +67,7 @@
+ 
+ %%
+ 
+-result: policy { final_policy = $1 }
++result: policy { final_policy = $1; }
+ 
+ number:   INTLIT '#' INTLIT          { $$ = expint($1, $3); }
+         | INTLIT                     { $$ = flexint($1);    }
+@@ -209,10 +212,10 @@
+ {
+ 	if( n->bits == 0 )
+ 		return leaf_policy
+-			(g_strdup_printf("%s_flexint_%llu", attr, n->value));
++			(g_strdup_printf("%s_flexint_%"PRIu64, attr, n->value));
+ 	else
+ 		return leaf_policy
+-			(g_strdup_printf("%s_expint%02d_%llu", attr, n->bits, n->value));
++			(g_strdup_printf("%s_expint%02d_%"PRIu64, attr, n->bits, n->value));
+ 
+ 	return 0;
+ }
+@@ -266,12 +269,12 @@
+ 	else if( p->children->len == 1 )
+ 	{
+ 		cpabe_policy_t* t;
+-		
++
+ 		t = g_ptr_array_remove_index(p->children, 0);
+ 		policy_free(p);
+ 		p = t;
+ 	}
+-	
++
+ 	return p;
+ }
+ 
+@@ -312,7 +315,7 @@
+ 	if( !n->bits )
+ 	{
+ 		cpabe_policy_t* l;
+-		
++
+ 		l = flexint_leader(gt, attr, n->value);
+ 		if( l )
+ 			p = kof2_policy(gt ? 1 : 2, l, p);
+@@ -388,7 +391,7 @@
+ 		while( isdigit(PEEK_CHAR) )
+ 			g_string_append_c(s, NEXT_CHAR);
+ 
+-		sscanf(s->str, "%llu", &(yylval.nat));
++		sscanf(s->str, "%"PRIu64, &(yylval.nat));
+ 
+ 		g_string_free(s, 1);
+ 		r = INTLIT;
+@@ -496,7 +499,7 @@
+ 	else if( pa->children->len == 0 && pb->children->len == 0 )
+ 		return strcmp(pa->attr, pb->attr);
+ 	else
+-		return 0;	
++		return 0;
+ }
+ 
+ void
+@@ -532,7 +535,7 @@
+ 		free(s);
+ 		r = t;
+ 	}
+-	
++
+ 	t = g_strdup_printf("%s %dof%d", r, p->k, p->children->len);
+  	free(r);
+ 
+@@ -574,7 +577,7 @@
+ 
+ 		s = malloc(sizeof(char) * strlen(a));
+ 
+-		if( sscanf(a, " %s = %llu # %u ", s, &value, &bits) == 3 )
++		if( sscanf(a, " %s = %"PRIu64" # %u ", s, &value, &bits) == 3 )
+ 		{
+ 			/* expint */
+ 
+@@ -593,9 +596,9 @@
+ 			free(tplate);
+ 
+ 			*l = g_slist_append
+-				(*l, g_strdup_printf("%s_expint%02d_%llu", s, bits, value));
++				(*l, g_strdup_printf("%s_expint%02d_%"PRIu64, s, bits, value));
+ 		}
+-		else if( sscanf(a, " %s = %llu ", s, &value) == 2 )
++		else if( sscanf(a, " %s = %"PRIu64" ", s, &value) == 2 )
+ 		{
+ 			/* flexint */
+ 
+@@ -609,14 +612,14 @@
+ 					(*l, bit_marker(s, "%s_flexint_%s%d%s", i, !!((uint64_t)1<<i & value)));
+ 
+ 			*l = g_slist_append
+-				(*l, g_strdup_printf("%s_flexint_%llu", s, value));
++				(*l, g_strdup_printf("%s_flexint_%"PRIu64, s, value));
+ 		}
+ 		else
+ 			die("error parsing attribute \"%s\"\n"
+ 					"(note that numerical attributes are unsigned integers)\n",	a);
+ 
+  		free(s);
+-	}	
++	}
+ }
+ 
+ char*
