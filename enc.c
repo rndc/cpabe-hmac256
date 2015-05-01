@@ -35,10 +35,6 @@ char* hmac_key = 0;
 char* policy   = 0;
 int   keep     = 0;
 
-hmac256_context_t hd;
-const unsigned char *digest;
-
-
 void
 parse_args(int argc, char** argv)
 {
@@ -104,70 +100,21 @@ parse_args(int argc, char** argv)
         policy = parse_policy_lang(suck_stdin());
 }
 
-int
-write_hmac256()
-{
-    FILE *fp;
-    int i, retval;
-    size_t n, keylen, dlen;
-    char buffer[4096];
-
-    retval = -1;
-    if (!(fp = fopen(in_file, "rb")))
-    {
-        printf("Can't open input file!\n");
-        goto done;
-    }
-
-    keylen = strlen(hmac_key);
-    if (!(hd = _gcry_hmac256_new(hmac_key, keylen)))
-    {
-        printf("Can't allocate context!\n");
-        goto done;
-    }
-
-    while ((n = fread(buffer, 1, sizeof(buffer), fp)))
-    {
-        _gcry_hmac256_update(hd, buffer, n);
-    }
-
-    fclose(fp);
-    digest = _gcry_hmac256_finalize (hd, &dlen);
-    if (!digest)
-    {
-        printf("Error computing HMAC!\n");
-        goto done;
-    }
-
-    fp = fopen(out_file, "a+");
-    if (fp != NULL)
-    {
-        for (i = 0; i < dlen; i++)
-        {
-            fprintf(fp, "%02x", digest[i]);
-        }
-        retval = 0;
-    }
-    _gcry_hmac256_release (hd);
-
-done:
-    if (fp) { fclose(fp); }
-    return retval;
-}
 
 int
 main(int argc, char** argv)
 {
+    FILE *fp;
     bswabe_pub_t* pub;
     bswabe_cph_t* cph;
-    int file_len;
     GByteArray* plt;
     GByteArray* cph_buf;
     GByteArray* aes_buf;
     element_t m;
-
+    int i, file_len;
     clock_t start, end;
     float time_result;
+    static unsigned char buff[34];
 
     parse_args(argc, argv);
 
@@ -176,7 +123,9 @@ main(int argc, char** argv)
     //Start timer
     start = clock();
     if (!(cph = bswabe_enc(pub, m, policy)))
+    {
         die("%s", bswabe_error());
+    }
     free(policy);
 
     cph_buf = bswabe_cph_serialize(cph);
@@ -197,8 +146,21 @@ main(int argc, char** argv)
     g_byte_array_free(cph_buf, 1);
     g_byte_array_free(aes_buf, 1);
 
-    if (!write_hmac256())
-        printf("HMAC function done!\n");
+    if (_gcry_hmac256_file(buff, 32, in_file, hmac_key, strlen(hmac_key)) != -1)
+    {
+        if ((fp = fopen(out_file, "a+")) != NULL)
+        {
+            for (i = 0; i < 32; i++)
+            {
+                fprintf(fp, "%02x", buff[i]);
+            }
+            fclose(fp);
+            printf("Added HMAC256!\n");
+        } else {
+            printf("Error: HMAC256 function failed!\n");
+            keep = 1;
+        }
+    }
 
     if (!keep)
         unlink(in_file);
